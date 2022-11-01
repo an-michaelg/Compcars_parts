@@ -1,0 +1,17 @@
+# training hyperparameters
+batch_size: 8
+lr: 0.01
+exp_gamma: 0.96
+num_epochs: 40
+# architectural 
+embedding_dim: 128
+encoder_pretrained: true
+dense_hidden_dim: 128
+use_gated: true
+# program setting
+log_dir: ../logs
+mode: train
+model_load_dir: none
+taxonomy: make
+use_cuda: true
+use_wandb: false
