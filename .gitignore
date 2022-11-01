@@ -1,0 +1,5 @@
+# ignore log files
+/logs
+# ignore pycache
+/**/.ipynb_checkpoints
+/**/__pycache__
