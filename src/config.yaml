@@ -1,8 +1,8 @@
 # training hyperparameters
-batch_size: 8
+batch_size: 32 # must be base2
 lr: 0.01
-exp_gamma: 0.96
-num_epochs: 40
+#exp_gamma: 0.96
+num_epochs: 100
 # architectural 
 embedding_dim: 128
 encoder_pretrained: true
@@ -14,4 +14,4 @@ mode: train
 model_load_dir: none
 taxonomy: make
 use_cuda: true
-use_wandb: false
+use_wandb: true

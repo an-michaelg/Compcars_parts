@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from skimage.transform import resize
 
 import torch
-from torch.utils.data import Dataset, DataLoader#, WeightedRandomSampler
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision.transforms import Compose, RandomResizedCrop, RandomRotation
 
 from random import seed
@@ -48,8 +48,12 @@ def get_cars_dataloader(batch_size, split, taxonomy):
                            transform = transform,
                            show_info = show_info)
     classind_to_gt = dset.classind_to_gt
-    shuffle = (split == 'train')
-    loader = DataLoader(dset, batch_size=batch_size, shuffle=shuffle)
+    if split == 'train':
+        w = dset.sampling_weights
+        inverse_freq_sampler = WeightedRandomSampler(w, len(w))
+        loader = DataLoader(dset, batch_size=batch_size, sampler=inverse_freq_sampler)
+    else:
+        loader = DataLoader(dset, batch_size=batch_size, shuffle=False)
     return loader, classind_to_gt
     
 
@@ -89,6 +93,9 @@ class CarPartsDataset(Dataset):
         # which we will create
         self.gt_to_classind, self.classind_to_gt = self._init_class_indices()
         
+        # get a list of sampling weights based on the inverse frequency of the class
+        self.sampling_weights = self._init_sampling_weights()
+        
         # define the input transformation for training and validation
         self.resolution = (resolution, resolution)
         self.transform = None
@@ -98,17 +105,21 @@ class CarPartsDataset(Dataset):
                  RandomResizedCrop(size=self.resolution, scale=(0.8, 1))]
             )
         self.normalize = normalize
-        data_mean = [0.54018143, 0.5401322, 0.53991949]
-        self.data_mean = torch.tensor(data_mean).unsqueeze(1).unsqueeze(2) #3x1x1
-        data_std = [0.18976531, 0.18984794, 0.1901707 ]
-        self.data_std = torch.tensor(data_std).unsqueeze(1).unsqueeze(2) #3x1x1
+        # normalize via imagenet mean because encoder pretraining was done on imagenet
+        # see https://discuss.pytorch.org/t/discussion-why-normalise-according-to-imagenet-mean-and-std-dev-for-transfer-learning/115670
+        #data_mean = [0.54018143, 0.5401322, 0.53991949]
+        imagenet_mean = [0.485, 0.456, 0.406]
+        self.data_mean = torch.tensor(imagenet_mean).unsqueeze(1).unsqueeze(2) #3x1x1
+        # data_std = [0.18976531, 0.18984794, 0.1901707 ]
+        imagenet_std = [0.229, 0.224, 0.225]
+        self.data_std = torch.tensor(imagenet_std).unsqueeze(1).unsqueeze(2) #3x1x1
         
     def _init_class_indices(self):
         # collect a group of car types/makes/models
         gt_codes = []
         gt_to_classind = {}
         classind_to_gt = {}
-        for k in self.data_dict.keys():
+        for k in self.key_list:
             gt_codes.append(self.data_dict[k][self.taxonomy])
         # only keep unique entries
         gt_codes_set = sorted(set(gt_codes))
@@ -117,6 +128,15 @@ class CarPartsDataset(Dataset):
             gt_to_classind[m] = ind
             classind_to_gt[ind] = m
         return gt_to_classind, classind_to_gt
+    
+    def _init_sampling_weights(self):
+        classes = []
+        for k in self.key_list:
+            classes.append(self.data_dict[k][self.taxonomy])
+        counts = [classes.count(i) for i in classes]
+        inverse_counts = [1/i for i in counts]
+        return inverse_counts
+        
 
     def __len__(self) -> int:
         return len(self.key_list)
@@ -210,14 +230,15 @@ def visualize_data(x, car_class, path, misc):
     plt.show()
 
 def dataset_unit_test(idx):
-    cpd = CarPartsDataset(DATA_ROOT, split='train', show_info=True, transform=True, normalize=True)
+    cpd = CarPartsDataset(DATA_ROOT, split='train', show_info=True, transform=True, normalize=True, taxonomy='type')
     x, y, xp, meta  = cpd[idx]
     visualize_data(x, y, xp, meta)
+    return cpd
 
 def dataloader_unit_test(): # should be list of float32 tensors accompanied by their labels
-    cars_dl, code = get_cars_dataloader(batch_size=1, split='test', taxonomy='make')
+    cars_dl, code = get_cars_dataloader(batch_size=8, split='train', taxonomy='make')
     #_, m2 = get_cars_dataloader(batch_size=1, split='train')
     d = next(iter(cars_dl))
     return d, code#, m2
     
-d, m = dataloader_unit_test()
+d, c = dataloader_unit_test()

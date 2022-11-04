@@ -19,13 +19,18 @@ from compcars_dataloader import get_car_views, get_car_types
 class Network(object):
     """Wrapper for training and testing pipelines."""
 
-    def __init__(self, config, classind_to_model, taxonomy):
+    def __init__(self, config, classind_to_model, taxonomy, batch_limit):
         """Initialize configuration."""
         super().__init__()
         #torch.autograd.set_detect_anomaly(True)
         
         self.config = config
         self.epsilon = 1e-8
+        self.batch_size = config['batch_size']
+        if config['batch_size'] > batch_limit:
+            self.batch_accum_iters = config['batch_size'] // batch_limit
+        else:
+            self.batch_accum_iters = 1
         # track some consistent information about the dataset
         self.car_views = get_car_views()
         self.car_types = get_car_types()
@@ -39,10 +44,11 @@ class Network(object):
         # self.dense_hidden_dim = config['dense_hidden_dim']
         # self.pretrained = config['encoder_pretrained']
         # self.use_gated = config['use_gated']
-        self.model = AveragingClassifier(config['embedding_dim'], 
+        self.model = GatedAttentionClassifier(config['embedding_dim'], 
                                               config['dense_hidden_dim'],
                                               self.num_classes,
-                                              config['encoder_pretrained'])
+                                              config['encoder_pretrained'],
+                                              config['use_gated'])
         
         if config['use_cuda']:
             if torch.cuda.is_available():
@@ -132,11 +138,11 @@ class Network(object):
     def configure_optimizers(self):
         params = self.model.parameters()
         optimizer = torch.optim.Adam(params, lr=self.config['lr'])
-        # self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        #     self.optimizer,T_max=self.config['num_epochs'])
         vb = (self.config['mode'] != 'test')
-        scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            optimizer, gamma=self.config['exp_gamma'], verbose=vb)
+        # scheduler = torch.optim.lr_scheduler.ExponentialLR(
+        #     optimizer, gamma=self.config['exp_gamma'], verbose=vb)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,T_max=self.config['num_epochs'], verbose=vb)
         return optimizer, scheduler
 
     def _get_network_output(self, data):
@@ -177,7 +183,7 @@ class Network(object):
         else:
             self.model.eval()
         
-        for data in tqdm(loader):
+        for i, data in enumerate(tqdm(loader)):
             imgs, targets, logits = self._get_network_output(data)
             
             loss = self._get_loss(logits, targets)
@@ -186,17 +192,20 @@ class Network(object):
             argm, _, _ = self._get_prediction_stats(logits)
             gt.append(targets)
             pred.append(argm)
-            # print(' ')
-            # print(argm)
-            # print(targets)
+            #print(' ')
+            #print(argm)
+            #print(targets)
             
             if mode == 'train':
-                # Back-progagate the gradient.
+                # calculate the gradient with respect to the input
                 loss.backward()
-                # Update the parameters according to the gradient.
-                self.optimizer.step()
-                # Zero the parameter gradients in the optimizer
-                self.optimizer.zero_grad() 
+                # use the gradient accumulation trick to increase batch size
+                # see https://discuss.pytorch.org/t/how-to-increase-the-batch-size-but-keep-the-gpu-memory/26275
+                if (i+1) % self.batch_accum_iters == 0 or (i+1) == len(loader):
+                    # Update the parameters according to the gradient.
+                    self.optimizer.step()
+                    # Zero the parameter gradients in the optimizer
+                    self.optimizer.zero_grad() 
 
         loss_avg = torch.mean(torch.stack(losses)).item()
         gt = torch.cat(gt)
@@ -207,7 +216,8 @@ class Network(object):
     
     def train(self, loader_tr, loader_va):
         """Training pipeline."""
-            
+        print("Training model with total batch_size {} via {}x batch accumulation"
+              .format(self.batch_size, self.batch_accum_iters))
         best_va_acc = 0.0 # Record the best validation metrics.
         for epoch in range(self.config['num_epochs']):
             loss, acc, f1 = self._epoch('train', loader_tr)

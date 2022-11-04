@@ -1,0 +1,58 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.10.15
+    framework: torch
+    is_jupyter_run: true
+    is_kaggle_kernel: false
+    python_version: 3.8.8
+    t:
+      1:
+      - 1
+      - 5
+      4: 3.8.8
+      5: 0.10.15
+      8:
+      - 1
+      - 3
+batch_size:
+  desc: null
+  value: 32
+dense_hidden_dim:
+  desc: null
+  value: 128
+embedding_dim:
+  desc: null
+  value: 128
+encoder_pretrained:
+  desc: null
+  value: true
+log_dir:
+  desc: null
+  value: ../logs
+lr:
+  desc: null
+  value: 0.001
+mode:
+  desc: null
+  value: train
+model_load_dir:
+  desc: null
+  value: none
+num_epochs:
+  desc: null
+  value: 40
+taxonomy:
+  desc: null
+  value: make
+use_cuda:
+  desc: null
+  value: true
+use_gated:
+  desc: null
+  value: true
+use_wandb:
+  desc: null
+  value: true

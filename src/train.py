@@ -6,6 +6,8 @@ import yaml
 import argparse
 
 CONFIG_FILENAME = 'D:/Projects/Compcars/src/config.yaml'
+HW_BATCH_LIMIT = 8 # always use a base2 number
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -29,19 +31,16 @@ if __name__ == "__main__":
     
     tax = config['taxonomy']
     if config['mode']=="train":
-        bsize = config['batch_size']
+        bsize = min(config['batch_size'], HW_BATCH_LIMIT)
         dataloader_tr, classind_to_gt = get_cars_dataloader(bsize, split='train', taxonomy=tax)
-        dataloader_te, classind_to_gt = get_cars_dataloader(bsize, split='test', taxonomy=tax)
-    elif config['mode']=="test":
-        dataloader_te, classind_to_gt = get_cars_dataloader(batch_size=1, split='test', taxonomy=tax)
+    dataloader_te, classind_to_gt = get_cars_dataloader(batch_size=1, split='test', taxonomy=tax)
     
     # initialize the model and any loaded weights with Network
-    net = Network(config, classind_to_gt, taxonomy=tax)
+    net = Network(config, classind_to_gt, taxonomy=tax, batch_limit=HW_BATCH_LIMIT)
     
     if config['mode']=="train":
         net.train(dataloader_tr, dataloader_te)
-    elif config['mode']=="test":
-        net.test_comprehensive(dataloader_te, mode="test")
+    net.test_comprehensive(dataloader_te, mode="test")
         
     if config['use_wandb']:
         wandb.finish()
