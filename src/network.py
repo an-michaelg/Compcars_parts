@@ -154,8 +154,8 @@ class Network(object):
             targets = targets.cuda()
         
         # get the logit output
-        logits = self.model(imgs)
-        return imgs, targets, logits
+        logits, norm = self.model(imgs)
+        return imgs, targets, logits, norm
                 
     def _get_loss(self, logits, targets):
         """ Compute loss function based on configs """
@@ -292,6 +292,13 @@ class Network(object):
             pred_arr.append(argm.cpu().numpy()[0])
             max_p_arr.append(max_p.cpu().numpy()[0])
             entropy_arr.append(ent.cpu().numpy()[0])
+            
+            # # check attention
+            # paths_mask = [p[0] != 'N/A' for p in paths]
+            # norm = list(norm.squeeze().cpu().numpy())
+            # norm_rounded = [ '%.2f' % n for n in norm]
+            # print(paths_mask)
+            # print(norm_rounded)
                 
         # compile the information into a dictionary
         d = {'label ID':target_arr, 'pred ID': pred_arr, 
