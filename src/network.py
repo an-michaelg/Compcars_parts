@@ -154,8 +154,8 @@ class Network(object):
             targets = targets.cuda()
         
         # get the logit output
-        logits, norm = self.model(imgs)
-        return imgs, targets, logits, norm
+        logits = self.model(imgs)
+        return imgs, targets, logits
                 
     def _get_loss(self, logits, targets):
         """ Compute loss function based on configs """

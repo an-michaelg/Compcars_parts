@@ -10,8 +10,8 @@ dense_hidden_dim: 128
 use_gated: true
 # program setting
 log_dir: ../logs
-mode: test
-model_load_dir: devout-microwave-7
+mode: train
+model_load_dir: none
 taxonomy: make
 use_cuda: true
 use_wandb: true
